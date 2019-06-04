@@ -1,0 +1,4 @@
+You will take your GroupService with multicasting implementation from Homework 5 and improve it by making it fully-distributed across multiple machines/JVMs and adding most of the following features:
+Refactor the code to use Akka Cluster 
+Provide some type of reasonable message ordering guarantees 
+Implement well defined group membership (i.e., joining and leaving) protocols so actors do not receive messages meant for groups they are no longer in.
