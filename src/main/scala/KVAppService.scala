@@ -16,7 +16,7 @@ case class View(endpoints: Seq[ActorRef]) extends AppServiceAPI
 
 object KVAppService {
 
-  def apply(system: ActorSystem, numNodes: Int, ackEach: Int): List[ActorRef] = {
+  def apply(system: ActorSystem, numNodes: Int, ackEach: Int): ActorRef = {
 
     /** Storage tier: create K/V store servers */
     val stores = for (i <- 0 until numNodes)
@@ -26,7 +26,7 @@ object KVAppService {
     /** Get the Cluster going */
     val ports = List("2551","2552","0")
 
-    val masters = for (port <- ports) yield {
+    val servers = for (port <- ports) yield {
       
     
       val config = ConfigFactory.parseString(s"""
@@ -43,12 +43,13 @@ object KVAppService {
       for (server <- servers)
         server ! View(servers)
 
-      /** Load-generating master */
-      val master = system.actorOf(LoadMaster.props(numNodes, servers, ackEach), "LoadMaster")
-      master
+      servers
+      
 
     }
-    masters
+    /** Load-generating master */
+    val master = system.actorOf(LoadMaster.props(numNodes, servers, ackEach), "LoadMaster")
+    master
   }
 
   
