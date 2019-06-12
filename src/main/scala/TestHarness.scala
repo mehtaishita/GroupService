@@ -8,7 +8,7 @@ import akka.pattern.ask
 import akka.util.Timeout
 
 object TestHarness {
-  val system = ActorSystem("GenericService")
+  val system = ActorSystem("GroupService")
   implicit val timeout = Timeout(60 seconds)
   val numNodes = 10
   val burstSize = 1000

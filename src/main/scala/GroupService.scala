@@ -1,18 +1,19 @@
 import akka.actor.{Actor, ActorSystem, ActorRef, Props}
 import akka.event.Logging
+import scala.collection.mutable.{MutableList,HashMap,ListBuffer}
 
-// Define a new data structure to store in the KVStore to represent the membership list. 
-class GroupMap extends scala.collection.mutable.HashMap[BigInt, List[ActorRef]]
+class GroupMap extends HashMap[BigInt, List[ActorRef]]
+case class Multicast() 
 
 class GroupServer (val myNodeID: Int, val numNodes: Int, val numGroups: Int, storeServers: Seq[ActorRef], burstSize: Int) extends Actor {
   val generator = new scala.util.Random
   val cellstore = new KVClient(storeServers)
-  val localWeight: Int = 70
+  val localWeight: Int = 90
   val log = Logging(context.system, this)
 
-  var stats = new stats
-  var GroupID: List[BigInt]
-  var endpoints: Option[Seq[ActorRef]] = numNodes
+  var stats = new Stats
+  var groups: ListBuffer[BigInt] = new ListBuffer[BigInt]
+  var endpoints: Option[Seq[ActorRef]] = None
 
   def receive() = {
     case Prime() =>
@@ -22,13 +23,16 @@ class GroupServer (val myNodeID: Int, val numNodes: Int, val numGroups: Int, sto
       command
     case View(e) =>
       endpoints = Some(e)
+    case Multicast() =>
+      stats.castIn += 1
+      
   }
 
   private def command() = {
     val sample = generator.nextInt(100)
-    if (sample mod 3 == 1) {
+    if (sample % 2 == 0) {
       joinGroup
-    } else if(sample mod 3 == 2) {
+    } else if(sample % 5 == 0) {
       leaveGroup
     } else {
       sendMulticast
@@ -43,47 +47,112 @@ class GroupServer (val myNodeID: Int, val numNodes: Int, val numGroups: Int, sto
     }
   }
 
-  private def allocGroup() = {
-
+  private def allocGroup() = { 
+    val key = chooseEmptyCell
+    var cell = directRead(key)
+    assert(cell.isEmpty)
+    val r : List[ActorRef] = Nil
+    stats.allocated += 1
+    directWrite(key, r)
   }
 
   private def joinGroup() = {
-
+    var groupkey = chooseActiveCell
+    if (!groups.contains(groupkey)) {
+      var cell = directRead(groupkey) 
+      if (cell.isEmpty) {
+        stats.misses += 1
+      } else {
+        var members = cell.get
+        members = self :: members
+        stats.joined += 1
+        groups += groupkey
+        directWrite(groupkey,members)
+      }
+    }
   }
 
   private def leaveGroup() = {
-
+    var groupkey = chooseActiveCell
+    if (groups.contains(groupkey)) {
+      var cell = directRead(groupkey)
+      if (cell.isEmpty) {
+        stats.misses += 1
+      } else {
+        var members = cell.get
+        members = members.filter(_ == self)
+        stats.left += 1
+        groups -= groupkey
+        directWrite(groupkey,members)
+      }
+    }
   }
   
   private def sendMulticast() = {
-
+    var groupkey = chooseActiveCell
+    if (groups.contains(groupkey)) {
+      var cell = directRead(groupkey)
+      if (cell.isEmpty) {
+        stats.misses += 1
+      } else {
+        var members = cell.get
+        for( m <- members ){
+          m ! Multicast()
+          stats.castOut += 1
+        }
+      }
+    }
   }
 
-  private def rwcheck(key: BigInt, value: __) = { 
+  private def chooseEmptyCell(): BigInt =
+  {
+    
+    cellstore.hashForKey(myNodeID,1)
+  }
+
+  private def chooseActiveCell(): BigInt = { 
+    val chosenNodeID =
+      if (generator.nextInt(100) <= localWeight)
+        myNodeID
+      else
+        generator.nextInt(numNodes - 1)
+
+    
+    cellstore.hashForKey(chosenNodeID, 1)
+  }
+
+  private def rwcheck(key: BigInt, value: List[ActorRef]) = { 
     directWrite(key, value)
     val returned = read(key)
     if (returned.isEmpty)
       println("rwcheck failed: empty read")
-    else if (returned.get.next != value.next)
-      println("rwcheck failed: next match")
-    else if (returned.get.prev != value.prev)
-      println("rwcheck failed: prev match")
     else
       println("rwcheck succeeded")
   }
 
-  private def directRead(key: BigInt): Option[__] = {
+  private def read(key: BigInt): Option[List[ActorRef]] = {
+    val result = cellstore.read(key)
+    if (result.isEmpty) None else
+      Some(result.get.asInstanceOf[List[ActorRef]])
+  }
+
+  private def write(key: BigInt, value: GenericCell, dirtyset: AnyMap): Option[List[ActorRef]] = {
+    val coercedMap: AnyMap = dirtyset.asInstanceOf[AnyMap]
+    val result = cellstore.write(key, value, coercedMap)
+    if (result.isEmpty) None else
+      Some(result.get.asInstanceOf[List[ActorRef]])
+  }
+  private def directRead(key: BigInt): Option[List[ActorRef]] = {
     val result = cellstore.directRead(key)
     if (result.isEmpty) None else
-      Some(result.get.asInstanceOf[___])
+      Some(result.get.asInstanceOf[List[ActorRef]])
   }
 
-  private def directWrite(key: BigInt, value: __): Option[__] = {
+  private def directWrite(key: BigInt, value: List[ActorRef]): Option[List[ActorRef]] = {
     val result = cellstore.directWrite(key, value)
     if (result.isEmpty) None else 
-      Some(result.get.asInstanceOf[__])
+      Some(result.get.asInstanceOf[List[ActorRef]])
   }
-
 
 }
 
