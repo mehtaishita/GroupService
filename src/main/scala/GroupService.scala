@@ -1,11 +1,13 @@
-import akka.actor.{Actor, ActorSystem, ActorRef, Props}
+import akka.actor.{Actor, ActorSystem, ActorRef, Props, ActorLogging}
 import akka.event.Logging
 import scala.collection.mutable.{MutableList,HashMap,ListBuffer}
+import akka.cluster.Cluster
+import akka.cluster.ClusterEvent._
 
 class GroupMap extends HashMap[BigInt, List[ActorRef]]
 case class Multicast() 
 
-class GroupServer (val myNodeID: Int, val numNodes: Int, val numGroups: Int, storeServers: Seq[ActorRef], burstSize: Int) extends Actor {
+class GroupServer (val myNodeID: Int, val numNodes: Int, val numGroups: Int, storeServers: Seq[ActorRef], burstSize: Int) extends Actor with ActorLogging {
   val generator = new scala.util.Random
   val cellstore = new KVClient(storeServers)
   val localWeight: Int = 90
@@ -14,6 +16,13 @@ class GroupServer (val myNodeID: Int, val numNodes: Int, val numGroups: Int, sto
   var stats = new Stats
   var groups: ListBuffer[BigInt] = new ListBuffer[BigInt]
   var endpoints: Option[Seq[ActorRef]] = None
+
+  val cluster = Cluster(context.system)
+  
+  override def preStart(): Unit = {
+    cluster.subscribe(self, classOf[MemberEvent], classOf[UnreachableMember])
+  }
+  override def postStop(): Unit = cluster.unsubscribe(self)
 
   def receive() = {
     case Prime() =>
@@ -136,7 +145,7 @@ class GroupServer (val myNodeID: Int, val numNodes: Int, val numGroups: Int, sto
       Some(result.get.asInstanceOf[List[ActorRef]])
   }
 
-  private def write(key: BigInt, value: GenericCell, dirtyset: AnyMap): Option[List[ActorRef]] = {
+  private def write(key: BigInt, value: List[ActorRef], dirtyset: AnyMap): Option[List[ActorRef]] = {
     val coercedMap: AnyMap = dirtyset.asInstanceOf[AnyMap]
     val result = cellstore.write(key, value, coercedMap)
     if (result.isEmpty) None else

@@ -29,8 +29,10 @@ object TestHarness {
   }
 
   def runUntilDone() = {
-    master ! Start(opsPerNode)
-    val future = ask(master, Join()).mapTo[Stats]
-    val done = Await.result(future, 60 seconds)
+    master foreach {m =>
+      m ! Start(opsPerNode)
+      val future = ask(m, Join()).mapTo[Stats]
+      val done = Await.result(future, 60 seconds)
+    }
   }
 }

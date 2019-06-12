@@ -1,10 +1,11 @@
-import com.typesafe.sbt.SbtMultiJvm.multiJvmSettings
-import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys.MultiJvm
+
 
 val akkaVersion = "2.5.22"
 
-lazy val root = (project in file(".")).
-settings (
+lazy val `root` = project
+.in(file("."))
+.settings(
+  organization := "com.typesafe.akka.samples",
   name := "GroupService",
   version := "1.0",
   scalaVersion := "2.12.8",
@@ -25,5 +26,5 @@ settings (
   parallelExecution in Test := false,
   licenses := Seq(("CC0", url("http://creativecommons.org/publicdomain/zero/1.0")))
 )
-.configs (MultiJvm)
+
 
