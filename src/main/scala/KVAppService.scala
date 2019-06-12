@@ -24,9 +24,11 @@ object KVAppService {
 
     
     /** Get the Cluster going */
-    val ports = Seq("2551","2552","0")
+    val ports = List("2551","2552","0")
 
-    ports foreach { port =>
+    val masters = for (port <- ports) yield {
+      
+    
       val config = ConfigFactory.parseString(s"""
         akka.remote.netty.tcp.port=$port
         """).withFallback(ConfigFactory.load())
@@ -46,7 +48,9 @@ object KVAppService {
       master
 
     }
-    master
+    masters
   }
+
+  
 }
 

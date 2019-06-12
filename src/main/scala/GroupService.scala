@@ -7,7 +7,7 @@ import akka.cluster.ClusterEvent._
 class GroupMap extends HashMap[BigInt, List[ActorRef]]
 case class Multicast() 
 
-class GroupServer (val myNodeID: Int, val numNodes: Int, val numGroups: Int, storeServers: Seq[ActorRef], burstSize: Int) extends Actor with ActorLogging {
+class GroupServer (val myNodeID: Int, val numNodes: Int, val numGroups: Int, storeServers: Seq[ActorRef], burstSize: Int) extends Actor {
   val generator = new scala.util.Random
   val cellstore = new KVClient(storeServers)
   val localWeight: Int = 90
